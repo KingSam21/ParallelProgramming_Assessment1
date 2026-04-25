@@ -14,12 +14,8 @@
 #include <vector>
 #include <fstream>
 
-
-
 #include "CImg.h"
-
 using namespace cimg_library;
-
 
 // ================================================================================================
 // Function to Read and Open the kernel, to check if it has errors opening.
@@ -43,6 +39,8 @@ int main() {
     float probBurning = 0.01f;                                                                          // Probability of a tree burning
     float probImmune = 0.3f;                                                                            // Probability that the tree is immune to burning
     float probLightning = 0.001f;                                                                       // Probability that a tree has been struck by lightning.
+    size_t bytes = forest_size * sizeof(int);
+    std::vector<int> f_grid(forest_size);                                                               // vector to contain the values initialised in the forest.
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // CImg related Variables - Colours
@@ -51,18 +49,6 @@ int main() {
     const unsigned char treeColour[] = {0, 255, 0};                                                     // Should be green
     const unsigned char burningColour[] = {255, 0, 0};                                                  // Should be Red
     const unsigned char gridlineColour[] = {0, 0, 0};                                                   // Should be black
-
-    int lineSpace = 5;                                                                                  // The space between gridlines
-
-    // Create a new image(this case a grid for the forest). (width, height, depth(1 for 2d images), channels(colour components, 3 is for rgb))
-    CImg<unsigned char> displayForest(n, n, 1, 3); 
-
-    displayForest.draw_grid(lineSpace, lineSpace, 0, 0, false, false, emptyColour, 1.0);
-    displayForest.draw_point(50, 50, treeColour);
-
-    displayForest.display("This should be a grid");
-
-
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Query all availible OpenCL platforms.
@@ -139,7 +125,7 @@ int main() {
                     // kernel arguments.
                     // ------------------------------------------------------------
                     cl::Kernel kernel(program, "initialise_forest");
-                    kernel.setArg(0, d_forestA);                                                        // Sets the current forest grid.
+                    kernel.setArg(0, d_forestA);                                                        // Sets the current size of a row/column in forest grid.
                     kernel.setArg(1, n);                                                                // Sets the size of the forest grid.
                     kernel.setArg(2, probTree);                                                         // Sets the value for the probability of spawning a tree.
                     kernel.setArg(3, probBurning);                                                      // Sets the probability of the tree burning.
@@ -163,14 +149,112 @@ int main() {
                     // ------------------------------------------------------------
                     // Read back the buffer/kernel output.
                     // ------------------------------------------------------------
-                    std::vector<int> f_grid(forest_size);                                                           // vector containing the values initialised in the forest.
-                    queue.enqueueReadBuffer(d_forestA, CL_TRUE, 0, sizeof(int) * forest_size, f_grid.data());
+
+                    queue.enqueueReadBuffer (
+                                                d_forestA,                                              // The location in which the data is.
+                                                CL_TRUE,                                                // Means that the device will wait until the kernel is complete, before moving on.
+                                                0,                                                      // The range, 0 means to start from the beginning.
+                                                bytes,                                                  // The size of the data.
+                                                f_grid.data()                                           // The destination for the result from the kernel.
+                    );
+                    queue.finish();
+
+
+                    std::cout << "Simulation Completed!" << std::endl;                                  // Print a statement to the console when the simulation has completed.
+
+                    // ------------------------------------------------------------
+                    // Display the initialised state of the forest.
+                    // ------------------------------------------------------------
+                    CImg<unsigned char> visualiseForest (                                               // Create a new image (In this case, a grid for the forest).
+                                                            800,                                        // Width of the window. 
+                                                            800,                                        // Height of the window.
+                                                            1,                                          // Depth (1 for 2d images)
+                                                            3                                           // Channel (colour components: 1 is grayscale, 3 is RGB).
+                    ); 
+
+                    for (int y = 0; y < n; y++) {
+                        for (int x = 0; x < n; x++) {
+                            int treeState = f_grid[y * n + x];                                          // Create a variable recording the current cell position
+                            switch (treeState){                                                         // Switch statement to select the appropriate colour according to the cells value.
+                                case 0:
+                                    visualiseForest.draw_point(x, y, emptyColour);
+                                    break;
+                                case 1:
+                                    visualiseForest.draw_point(x, y, treeColour);
+                                    break;
+                                case 2:
+                                    visualiseForest.draw_point(x, y, burningColour);
+                                    break;
+                                default:
+                                    std::cout << "There was a poblem with cell: (" << x << "," << y << ")." << std::endl; 
+                            }
+                        }
+                    }
+                    CImgDisplay ForestFireSimulation(800, 800, "This is a Forest Fire Sim", 0);         // Turn the diplay window into a variable so it can be used in the while loop.
+                    //visualiseForest.display("This should be the first stage of the forest fire sim"); // Display the forest, using CImg Library. (PREVIOUS METHOD)
                     
-                    std::cout << "Simulation Completed!" << std::endl;
+                    int cellSize = 800/n;
+                    
+                    // ------------------------------------------------------------
+                    // While loop to keep updating the forest fire simulation.
+                    // ------------------------------------------------------------
+                    cl::Kernel kernel2(program, "update_forest");                                       // Change the current kernel function, to be the 'update_forest'.
+                    
+                    bool useForestA = true;                                                             // Booleon determing which forest is visualise to prevent race conditions.
+                    
+                    while (!ForestFireSimulation.is_closed()) {                                         // While the display window is open.
+                        // ------------------------------------------------------------
+                        // Set the kernel Arguemnts, changing which forest is A and B.
+                        // ------------------------------------------------------------
+                        kernel2.setArg(0, useForestA ? d_forestA : d_forestB);                          // The current forest grid.
+                        kernel2.setArg(1, useForestA ? d_forestB : d_forestA);                          // The Updated forest grid.
+                        kernel2.setArg(2, n);                                                           // The size of the forest grid.
+                        kernel2.setArg(3, probImmune);                                                  // Sets the value for the probability of a tree being immune.
+                        kernel2.setArg(4, probLightning);                                               // Sets the probability of the tree getting struck by lightning.
+
+                        // ------------------------------------------------------------
+                        // Create an event and launch the kernel.
+                        // ------------------------------------------------------------
+                        queue.enqueueNDRangeKernel(kernel2, cl::NullRange, cl::NDRange(forest_size), cl::NullRange);
+
+
+                        // ------------------------------------------------------------
+                        // Read back the results of the kernel.
+                        // ------------------------------------------------------------
+                        queue.enqueueReadBuffer(useForestA ? d_forestB : d_forestA, CL_TRUE, 0, sizeof(int) * forest_size, f_grid.data());
+                        queue.finish();
+
+                        // ------------------------------------------------------------
+                        // Assign the appropriate colours by looping through the results.
+                        // ------------------------------------------------------------
+                        for (int y = 0; y < n; y++) {
+                            for (int x = 0; x < n; x++) {
+                                int treeState = f_grid[y * n + x];                                      // Create a variable recording the current cell position
+                                switch (treeState){                                                     // Switch statement to select the appropriate colour according to the cells value.
+                                    case 0:
+                                        visualiseForest.draw_rectangle(x * cellSize, y * cellSize, (x + 1) * cellSize - 1, (y + 1) * cellSize - 1, emptyColour);
+                                        break;
+                                    case 1:
+                                        visualiseForest.draw_rectangle(x * cellSize, y * cellSize, (x + 1) * cellSize - 1, (y + 1) * cellSize - 1, treeColour);
+                                        break;
+                                    case 2:
+                                        visualiseForest.draw_rectangle(x * cellSize, y * cellSize, (x + 1) * cellSize - 1, (y + 1) * cellSize - 1, burningColour);
+                                        break;
+                                    default:
+                                        std::cout << "There was a poblem with cell: (" << x << "," << y << ")." << std::endl; 
+                                }
+                            }
+                        }
+
+                        visualiseForest.get_resize(800, 800, 1, 3, 1).display(ForestFireSimulation);
+
+                        useForestA = !useForestA;                                                       // Switch which forest is the current one, for the next iteration.
+                        cimg::wait(1000);                                                               // Sets the time in [ms] between iterations.
+                    }
 
                 }
                 catch (cl::BuildError &e) {
-                    std::cerr << "Build Error: " << e.getBuildLog()[0].second << std::endl;
+                    std::cerr << "Build Error: " << e.getBuildLog()[0].second << std::endl;             // Print a build log if the kernel fails to compile.
                 }
                 catch(const std::exception& e)  {
                     std::cerr << e.what() << '\n';
@@ -178,6 +262,5 @@ int main() {
             }
         }
     }
-
     return 0;
 }
