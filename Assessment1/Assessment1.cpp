@@ -1,6 +1,6 @@
 // ================================================================================================
 // TO RUN THE PROGRAM, GO TO A "git.bash" TERMINAL!
-// ENTER IN TERMINAL:   g++ Assessment1.cpp -o Assessment1.exe -I"C:\OpenCL-SDK\include" -lOpenCL
+// ENTER IN TERMINAL:   g++ Assessment1.cpp -o Assessment1.exe -I"C:\OpenCL-SDK\include" -lOpenCL -lgdi32
 // THEN ENTER:          ./Assessment1.exe
 // ================================================================================================
 
@@ -16,9 +16,9 @@
 
 
 
-//#include "CImg.h"
+#include "CImg.h"
 
-// using namespace cimg_library;
+using namespace cimg_library;
 
 
 // ================================================================================================
@@ -45,6 +45,26 @@ int main() {
     float probLightning = 0.001f;                                                                       // Probability that a tree has been struck by lightning.
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // CImg related Variables - Colours
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    const unsigned char emptyColour[] = {255, 255, 255};                                                // Should be white
+    const unsigned char treeColour[] = {0, 255, 0};                                                     // Should be green
+    const unsigned char burningColour[] = {255, 0, 0};                                                  // Should be Red
+    const unsigned char gridlineColour[] = {0, 0, 0};                                                   // Should be black
+
+    int lineSpace = 5;                                                                                  // The space between gridlines
+
+    // Create a new image(this case a grid for the forest). (width, height, depth(1 for 2d images), channels(colour components, 3 is for rgb))
+    CImg<unsigned char> displayForest(n, n, 1, 3); 
+
+    displayForest.draw_grid(lineSpace, lineSpace, 0, 0, false, false, emptyColour, 1.0);
+    displayForest.draw_point(50, 50, treeColour);
+
+    displayForest.display("This should be a grid");
+
+
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Query all availible OpenCL platforms.
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     std::vector<cl::Platform> platforms;                                                                // Vector for storing all availble platforms that use OpenCL.
@@ -62,7 +82,7 @@ int main() {
         // ---------------------------------------------------------------------
         // Print information about each platform
         // ---------------------------------------------------------------------
-        std::cout << "====================\n";
+        std::cout << "\n====================\n";
         std::cout << "Platform Name:        " << platform.getInfo<CL_PLATFORM_NAME>() << "\n";
         std::cout << "Platform Vendor:      " << platform.getInfo<CL_PLATFORM_VENDOR>() << "\n";
         std::cout << "Platform Version:     " << platform.getInfo<CL_PLATFORM_VERSION>() << "\n";
@@ -138,14 +158,15 @@ int main() {
                     cl_ulong start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
                     cl_ulong end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
                     double elapsedMs = (end - start) * 1.0e-6;
-                    std::cout << "Kernel Execution Time:" << elapsedMs << "ms\n"; 
+                    std::cout << "Kernel Execution Time: " << elapsedMs << "ms\n"; 
                     
                     // ------------------------------------------------------------
                     // Read back the buffer/kernel output.
                     // ------------------------------------------------------------
-                    std::vector<int> f_grid(forest_size);
+                    std::vector<int> f_grid(forest_size);                                                           // vector containing the values initialised in the forest.
                     queue.enqueueReadBuffer(d_forestA, CL_TRUE, 0, sizeof(int) * forest_size, f_grid.data());
-
+                    
+                    std::cout << "Simulation Completed!" << std::endl;
 
                 }
                 catch (cl::BuildError &e) {

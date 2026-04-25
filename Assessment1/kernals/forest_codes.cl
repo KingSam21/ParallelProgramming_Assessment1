@@ -1,9 +1,17 @@
-// 0 = empty cell
-// 1 = Tree
-// 2 = Burning Tree.
+// ================================================================================================
+// Generate a random number Function
+// ================================================================================================
+uint mlcg_rand(uint *state) {
+    *state = *state * 1664525u + 101390422u;
+    return *state;
+}
+
 
 // ================================================================================================
 // Initialise Forest Kernel Function
+// 0 = empty cell
+// 1 = Tree
+// 2 = Burning Tree.
 // ================================================================================================
 __kernel void initialise_forest(
                                 __global float* forest, 
@@ -11,19 +19,21 @@ __kernel void initialise_forest(
                                 const float probTree, 
                                 const float probBurning)
 {
-    int x = get_global_id(0);
-    int y = get_global_id(1);
+    int id = get_global_id(0);
 
-    // Safety check, so kernel remains within the bounds of the grid.
-    if (x >= n || y >= n) return;
+    // Safety check, so kernel remains within the bounds of the forest grid.
+    if (id >= n * n) return;
 
     // 
-    int id = x + y * n;
-    forest[id] = 2%3;
+    forest[id] = id%3;
 
-    printf("Hello from work-item %d\n", x);
+    //printf("Hello from work-item %f\n", forest[id]);
+    //printf("%d\n", id);
 }
 
+
+
+/*
 // ================================================================================================
 // Update Forest Kernel Function
 // ================================================================================================
@@ -37,3 +47,4 @@ __kernel void update_forest(
         forest[id] = 2
     }
 }
+*/
