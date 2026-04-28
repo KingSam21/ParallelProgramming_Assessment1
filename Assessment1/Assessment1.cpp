@@ -33,9 +33,9 @@ int main() {
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Declare variables - these determine the properties for the forest. (random number > probability = true)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    int n = 100;                                                                                        // Size of the row/column of the grid
+    int n = 800;                                                                                        // Size of the row/column of the grid
     const size_t forest_size = n * n;                                                                   // Size of the forest grid.
-    float probTree = 0.8f;                                                                              // Probability of genreating a tree
+    float probTree = 0.8f;                                                                              // Probability of generating a tree
     float probBurning = 0.01f;                                                                          // Probability of a tree burning
     float probImmune = 0.3f;                                                                            // Probability that the tree is immune to burning
     float probLightning = 0.001f;                                                                       // Probability that a tree has been struck by lightning.
@@ -51,10 +51,10 @@ int main() {
     const unsigned char gridlineColour[] = {0, 0, 0};                                                   // Should be black
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // Query all availible OpenCL platforms.
+    // Query all available OpenCL platforms.
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    std::vector<cl::Platform> platforms;                                                                // Vector for storing all availble platforms that use OpenCL.
-    cl::Platform::get(&platforms);                                                                      // Retrieve all availible OpenCL Platforms
+    std::vector<cl::Platform> platforms;                                                                // Vector for storing all available platforms that use OpenCL.
+    cl::Platform::get(&platforms);                                                                      // Retrieve all available OpenCL Platforms
 
     if (platforms.empty())  {                                                                           // Check to see that list of platforms is not empty.
         std::cout << "No OpenCL platforms found\n";                                                     // If it is empty inform the user.
@@ -75,7 +75,7 @@ int main() {
         std::cout << "Profile:              " << platform.getInfo<CL_PLATFORM_PROFILE>() << "\n";
         
         // ---------------------------------------------------------------------
-        // Query all availible Devices for each platform
+        // Query all available Devices for each platform
         // ---------------------------------------------------------------------
         std::vector<cl::Device> devices;                                                                // Vector for storing all of the available OpenCL devices on the platform.
         platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);                                              // Retrieve all available devices for the platform.
@@ -86,7 +86,7 @@ int main() {
         } 
         else{
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            // For loop iterating thorugh all availible devices.
+            // For loop iterating through all available devices.
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             for (auto &device : devices) {
                 // ------------------------------------------------------------
@@ -115,9 +115,9 @@ int main() {
                     cl::Buffer d_forestB(context, CL_MEM_READ_WRITE, sizeof(int) * forest_size);        // Buffer, for the updated forest grid.
 
                     // ------------------------------------------------------------
-                    // Load and Build the Kernals.
+                    // Load and Build the Kernels.
                     // ------------------------------------------------------------
-                    std::string kernel_source = LoadKernelSource("kernals/forest_codes.cl");            // Call LoadKernelSource helper function to see if it can be called.
+                    std::string kernel_source = LoadKernelSource("kernels/forest_codes.cl");            // Call LoadKernelSource helper function to see if it can be called.
                     cl::Program program(context, kernel_source);                                        // Create the program for the kernel code, within the context workspace.
                     program.build({device});                                                            // Build the program, containing kernal code, for each device.
                     
@@ -190,7 +190,7 @@ int main() {
                             }
                         }
                     }
-                    CImgDisplay ForestFireSimulation(800, 800, "This is a Forest Fire Sim", 0);         // Turn the diplay window into a variable so it can be used in the while loop.
+                    CImgDisplay ForestFireSimulation(800, 800, "This is a Forest Fire Sim", 0);         // Turn the display window into a variable so it can be used in the while loop.
                     //visualiseForest.display("This should be the first stage of the forest fire sim"); // Display the forest, using CImg Library. (PREVIOUS METHOD)
                     
                     int cellSize = 800/n;
@@ -200,11 +200,11 @@ int main() {
                     // ------------------------------------------------------------
                     cl::Kernel kernel2(program, "update_forest");                                       // Change the current kernel function, to be the 'update_forest'.
                     
-                    bool useForestA = true;                                                             // Booleon determing which forest is visualise to prevent race conditions.
+                    bool useForestA = true;                                                             // Boolean determining which forest is visualise to prevent race conditions.
                     
                     while (!ForestFireSimulation.is_closed()) {                                         // While the display window is open.
                         // ------------------------------------------------------------
-                        // Set the kernel Arguemnts, changing which forest is A and B.
+                        // Set the kernel Arguments, changing which forest is A and B.
                         // ------------------------------------------------------------
                         kernel2.setArg(0, useForestA ? d_forestA : d_forestB);                          // The current forest grid.
                         kernel2.setArg(1, useForestA ? d_forestB : d_forestA);                          // The Updated forest grid.
